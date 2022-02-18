@@ -8,7 +8,7 @@ public class GCDemo {
 
     private static final Runtime ENVIRONMENT = Runtime.getRuntime();
 
-    public static void info() {
+    public void info() {
         final long freeMemory = ENVIRONMENT.freeMemory();
         final long totalMemory = ENVIRONMENT.totalMemory();
         final long maxMemory = ENVIRONMENT.maxMemory();
@@ -19,12 +19,12 @@ public class GCDemo {
     }
 
     public static void main(String[] args) {
-        info();
+        GCDemo gcDemo = new GCDemo();
+        gcDemo.info();
         for (int i = 0; i < 10000; i++) {
             new Person(i, "N" + i);
         }
         System.gc();
-        info();
+        gcDemo.info();
     }
-
 }
