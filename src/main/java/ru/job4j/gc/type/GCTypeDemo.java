@@ -4,7 +4,7 @@ import java.util.Random;
 
 public class GCTypeDemo {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         System.out.println("PID процесса: " + ProcessHandle.current().pid());
         Random random = new Random();
         int length = 100;

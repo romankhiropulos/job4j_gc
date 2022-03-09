@@ -1,0 +1,80 @@
+
+Настройки запуска приложения: -XX:+UseSerialGC -Xmx250M "-Xlog:gc*" -XX:NewRatio=4
+Тестировать приложение будем с помощью двух методов с большим кол-вом итераций
+добавления и удаления Item`ов в tracker с реализацией хранения данных в оперативной памяти
+
+      private static void add(MemTracker tracker) throws InterruptedException {
+          for (int i = 0; ; i++) {
+              Item item = new Item(
+                      i, "Help, again default!" + (" Number: " + i), Timestamp.valueOf(LocalDateTime.now())
+              );
+              tracker.add(item);
+              Thread.sleep(1);
+              System.out.println(item);
+          }
+      }
+
+      private static void delete(MemTracker tracker) throws InterruptedException {
+          for (int i = 0; ; i++) {
+              tracker.delete(i);
+              Thread.sleep(1);
+              System.out.println("Id: " + i + " deleted!");
+          }
+      }
+
+1. Используем утилиту jps для обнаружения PID процесса: 3450
+
+2. jmap -histo 3450. Делаем дамп памяти.
+ num     #instances         #bytes  class name (module)
+-------------------------------------------------------
+   1:         59750        5558168  [B (java.base@11.0.2)
+   2:         13667        3821152  [I (java.base@11.0.2)
+   3:         40590        1948320  java.nio.HeapCharBuffer (java.base@11.0.2)
+   4:         20285        1947360  sun.util.calendar.Gregorian$Date (java.base@11.0.2)
+   5:         53813        1291512  java.lang.String (java.base@11.0.2)
+   6:         10409         897312  [C (java.base@11.0.2)
+   ...
+   673:           1             16  sun.util.resources.provider.NonBaseLocaleDataMetaInfo (jdk.localedata@11.0.2)
+
+3. jstat -gc 3450 1s 1000 - сводная информация о состоянии памяти
+START:
+ S0C    S1C    S0U    S1U      EC       EU        OC         OU       MC     MU    CCSC   CCSU   YGC     YGCT    FGC    FGCT    CGC    CGCT     GCT
+5120,0 5120,0  0,0    0,0   40960,0   4915,6   204800,0     0,0      0,0    0,0    0,0    0,0        0    0,000   0      0,000   -          -    0,000
+
+YGC	Число молодых Событий GC генерации запускался раз - 15.
+FGC	Число полных событий GC - 143.
+GCT	Полное время сборки "мусора" - 52,513. Т.Е. 5,2% наблюдения за работой GC занял сам сборщик.
+
+4. jconsole показал следующее:
+ При -Xmx250M -XX:NewRatio=4 "-Xlog:gc*" -XX:+UseSerialGC: Done!
+ MAX CPU Usage = 12.4%
+ Clases Loaded = 2 208, Unloaded = 60, Total = 2 268;
+ Heap Memory Used = 255.1 Mb, Commited = 256.9 Mb, MAX = 256.9 Mb.
+ Theads Live, Peak и Total = 16;
+
+ При-Xmx25M -XX:NewRatio=5 "-Xlog:gc*" -XX:+UseSerialGC, Crash on 62.388s with error:
+ [62.388s][info][gc,heap,exit   ]   class space    used 704K, committed 896K, reserved 1048576K
+ Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
+ MAX CPU Usage = 1%,
+ Clases Loaded = 2 208, Unloaded = 0, Total = 2 268;
+ Heap Memory Used = 6 Mb, Commited = 26.9 Mb, MAX = 25.9 Mb.
+
+ При -Xmx250M -XX:NewRatio=5 "-Xlog:gc*" -XX:+UseParallelGC, Crash on 70.166s with error:
+ [70.166s][info][gc,heap,exit   ]   class space    used 722K, committed 960K, reserved 1048576K
+ Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
+ MAX CPU Usage = 12.0%
+ Clases Loaded = 2 250, Unloaded = 50, Total = 2 300;
+ Heap Memory Used = 248.3 Mb, Commited = 262.1 Mb, MAX = 262.1 Mb.
+ Theads Live, Peak и Total = 17;
+
+ При -Xlog:gc* -XX:+UseG1GC, Done:
+ MAX CPU Usage = 94.8%
+ Clases Loaded = 2 246, Unloaded = 96, Total = 2 342;
+ Heap Memory Used = 4.3 Gb, Commited = 4.3 G, MAX = 4.3 G.
+ Theads Live = 14, Peak и Total = 16;
+
+ Выводы:
+ 1) При добавлении элементов идет значительная динамика потребления Heap Memory, а при удалении гораздо плавнее.
+ 2) Большая нагрузка происходит при добавлении элемента.
+ 3) При выборе не подходящих значений -XmxXM -XX:NewRatio=X в меньшую сторону от реальныго потребления,
+ 100% вероятность получить не обрабатываемую ошибку Java heap space или GC overhead limit exceeded.
