@@ -1,0 +1,15 @@
+Корректным использованием безопасных ссылок(SoftReference) является сначала получение сильной ссылки на данные,
+а потом работа с сильной ссылкой. Корректное использование слабых ссылок(WeakReference) аналогично безопасным.
+
+private void safe() {
+    Object strong = new Object();
+    SoftReference<Object> soft = new SoftReference<>(strong);
+    Map<String, SoftReference<Object>> someData = new HashMap<>();
+    someData.put("First", soft);
+    Object strong = someData.get("First").get();
+    if (strong != null) {
+        System.out.println(strong);
+    } else {
+        System.out.println("Strong object deleted!");
+    }
+}
